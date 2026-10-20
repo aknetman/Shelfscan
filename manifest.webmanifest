@@ -1,0 +1,14 @@
+{
+  "name": "ShelfScan",
+  "short_name": "ShelfScan",
+  "description": "Scan a grocery barcode and see what Open Food Facts and UPCitemdb list for it.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f5f2",
+  "theme_color": "#1d6b57",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

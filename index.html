@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d6b57">
+<title>ShelfScan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column, camera viewfinder on top, one result row per database below. */
+:root {
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --fg: #17211d;
+  --muted: #5b6862;
+  --line: #d6ddd8;
+  --accent: #1d6b57;
+  --accent-fg: #ffffff;
+  --miss: #8a5a12;
+  --err: #a1302a;
+  --display: "Archivo", system-ui, sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101513; --surface: #18201c; --fg: #e6ece8; --muted: #95a39c;
+    --line: #2a3530; --accent: #4fb896; --accent-fg: #0b1512;
+    --miss: #e0a54a; --err: #ef7d75; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font: 16px/1.45 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+}
+.app { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+h1 { font: 700 1.5rem/1.1 var(--display); margin: 0; letter-spacing: -0.01em; }
+.tag { font: 500 0.75rem var(--mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+.viewfinder {
+  position: relative; width: 100%; aspect-ratio: 4 / 3; max-width: 100%;
+  background: #0b0f0d; border-radius: 14px; overflow: hidden;
+}
+.viewfinder video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.reticle {
+  position: absolute; left: 10%; right: 10%; top: 32%; bottom: 32%;
+  border: 2px solid rgba(255,255,255,0.85); border-radius: 8px; pointer-events: none;
+}
+.reticle::after {
+  content: ""; position: absolute; left: 6px; right: 6px; top: 50%; height: 2px;
+  background: #ff5a4e; box-shadow: 0 0 8px #ff5a4e;
+}
+.idle {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 10px; color: #c9d3ce; text-align: center; padding: 20px;
+}
+.bars { font: 500 2.4rem/1 var(--mono); letter-spacing: -0.12em; color: #6f7d76; }
+
+.controls { display: flex; gap: 10px; }
+button {
+  font: 700 1rem var(--display); border: 0; border-radius: 10px; padding: 14px 18px;
+  cursor: pointer; flex: 1;
+}
+.primary { background: var(--accent); color: var(--accent-fg); }
+.secondary { background: transparent; color: var(--fg); border: 1.5px solid var(--line); flex: 0 0 auto; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.5; cursor: default; }
+
+.status { font-size: 0.92rem; color: var(--muted); min-height: 1.3em; margin: 0; }
+.status.err { color: var(--err); }
+
+.code-line { display: flex; align-items: baseline; gap: 10px; }
+.code-line .label { font: 500 0.75rem var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.code { font: 500 1.25rem var(--mono); font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+
+.results { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.src { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.src-name { font: 500 0.78rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.pill { font: 500 0.72rem var(--mono); padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; }
+.pill.found { color: var(--accent); }
+.pill.miss { color: var(--miss); }
+.pill.err { color: var(--err); }
+.pill.wait { color: var(--muted); }
+.name { font: 700 1.1rem/1.3 var(--display); margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.brand { margin: 0; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.note { margin: 0; color: var(--muted); font-size: 0.92rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1>ShelfScan</h1>
+    <span class="tag">UPC · EAN</span>
+  </header>
+
+  <div class="viewfinder" id="viewfinder">
+    <video id="video" playsinline muted hidden></video>
+    <div class="reticle" id="reticle" hidden></div>
+    <div class="idle" id="idle">
+      <div class="bars" aria-hidden="true">|||| ||| || ||||</div>
+      <div>Tap <strong>Scan</strong> and point the camera at a barcode.</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="scanBtn" type="button">Scan</button>
+    <button class="secondary" id="stopBtn" type="button" hidden>Stop</button>
+  </div>
+  <p class="status" id="status" role="status"></p>
+
+  <section id="resultBlock" hidden>
+    <div class="code-line"><span class="label">Barcode</span><span class="code" id="codeOut"></span></div>
+    <div class="results" id="results"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const SOURCES = [
+    { id: "off", name: "Open Food Facts", lookup: lookupOFF },
+    { id: "upc", name: "UPCitemdb", lookup: lookupUPCitemdb }
+  ];
+  const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e"];
+
+  const $ = (id) => document.getElementById(id);
+  const video = $("video"), scanBtn = $("scanBtn"), stopBtn = $("stopBtn");
+  const statusEl = $("status"), idle = $("idle"), reticle = $("reticle");
+
+  let stream = null, detector = null, running = false;
+
+  function setStatus(text, isErr) {
+    statusEl.textContent = text || "";
+    statusEl.classList.toggle("err", !!isErr);
+  }
+
+  async function getDetector() {
+    if (detector) return detector;
+    if (!("BarcodeDetector" in window)) {
+      throw new Error("This browser can't read barcodes. Open the page in Chrome on Android.");
+    }
+    let formats = FORMATS;
+    try {
+      const supported = await BarcodeDetector.getSupportedFormats();
+      formats = FORMATS.filter((f) => supported.includes(f));
+    } catch (_) {}
+    if (!formats.length) throw new Error("This browser can't read product barcodes.");
+    detector = new BarcodeDetector({ formats });
+    return detector;
+  }
+
+  async function startScan() {
+    setStatus("");
+    try {
+      await getDetector();
+    } catch (e) { setStatus(e.message, true); return; }
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setStatus("The camera needs this page to be opened over https.", true);
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+    } catch (e) {
+      const denied = e && (e.name === "NotAllowedError" || e.name === "SecurityError");
+      setStatus(denied
+        ? "Camera access was blocked. Allow the camera for this site in Chrome's site settings, then tap Scan."
+        : "Couldn't start the camera. Close other apps using it and try again.", true);
+      return;
+    }
+    video.srcObject = stream;
+    await video.play().catch(() => {});
+    video.hidden = false; reticle.hidden = false; idle.hidden = true;
+    scanBtn.disabled = true; stopBtn.hidden = false;
+    setStatus("Looking for a barcode…");
+    running = true;
+    loop();
+  }
+
+  function stopScan() {
+    running = false;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null;
+    video.srcObject = null;
+    video.hidden = true; reticle.hidden = true; idle.hidden = false;
+    scanBtn.disabled = false; stopBtn.hidden = true;
+  }
+
+  async function loop() {
+    if (!running) return;
+    if (video.readyState >= 2) {
+      try {
+        const codes = await detector.detect(video);
+        const hit = codes.find((c) => /^\d{6,14}$/.test(c.rawValue));
+        if (hit) {
+          if (navigator.vibrate) navigator.vibrate(60);
+          stopScan();
+          setStatus("");
+          lookupAll(hit.rawValue);
+          return;
+        }
+      } catch (_) {}
+    }
+    setTimeout(() => requestAnimationFrame(loop), 120);
+  }
+
+  // UPC-E barcodes are expanded to UPC-A so both databases recognise them.
+  function normalize(code) {
+    if (code.length === 8 && code[0] === "0") {
+      const d = code.split("");
+      const [, a, b, c, x, y, z, check] = d;
+      let body;
+      if (z <= "2") body = a + b + z + "0000" + c + x + y;
+      else if (z === "3") body = a + b + c + "00000" + x + y;
+      else if (z === "4") body = a + b + c + x + "00000" + y;
+      else body = a + b + c + x + y + "0000" + z;
+      return "0" + body + check;
+    }
+    return code;
+  }
+
+  function lookupAll(raw) {
+    const code = normalize(raw);
+    $("codeOut").textContent = code;
+    $("resultBlock").hidden = false;
+    const wrap = $("results");
+    wrap.textContent = "";
+    SOURCES.forEach((src) => {
+      const row = renderRow(src.name);
+      wrap.appendChild(row.el);
+      src.lookup(code).then(
+        (r) => r ? row.found(r.name, r.brand) : row.miss(),
+        (e) => row.error(e && e.message)
+      );
+    });
+  }
+
+  function renderRow(sourceName) {
+    const el = document.createElement("div");
+    el.className = "row";
+    const head = document.createElement("div"); head.className = "src";
+    const nm = document.createElement("span"); nm.className = "src-name"; nm.textContent = sourceName;
+    const pill = document.createElement("span"); pill.className = "pill wait"; pill.textContent = "Checking";
+    head.append(nm, pill);
+    const body = document.createElement("div");
+    el.append(head, body);
+    const setPill = (cls, text) => { pill.className = "pill " + cls; pill.textContent = text; };
+    return {
+      el,
+      found(name, brand) {
+        setPill("found", "Found");
+        const n = document.createElement("p"); n.className = "name"; n.textContent = name || "(no name listed)";
+        const b = document.createElement("p"); b.className = "brand"; b.textContent = brand ? brand : "No brand listed";
+        body.replaceChildren(n, b);
+      },
+      miss() { setPill("miss", "Not found"); body.replaceChildren(); },
+      error(msg) {
+        setPill("err", "Unavailable");
+        const p = document.createElement("p"); p.className = "note";
+        p.textContent = msg || "Couldn't reach this database. Check your connection and scan again.";
+        body.replaceChildren(p);
+      }
+    };
+  }
+
+  async function fetchJSON(url, timeoutMs) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs || 10000);
+    try {
+      return await fetch(url, { signal: ctrl.signal, headers: { Accept: "application/json" } });
+    } finally { clearTimeout(t); }
+  }
+
+  async function lookupOFF(code) {
+    const url = "https://world.openfoodfacts.org/api/v2/product/" + encodeURIComponent(code) +
+      ".json?fields=product_name,product_name_en,brands";
+    let res;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { res = await fetchJSON(url); } catch (_) { res = null; }
+      if (res && res.status !== 503) break;
+    }
+    if (!res) throw new Error("Couldn't reach Open Food Facts. Check your connection and scan again.");
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("Open Food Facts is busy right now. Scan again in a moment.");
+    const data = await res.json();
+    if (data.status !== 1 || !data.product) return null;
+    const p = data.product;
+    const name = (p.product_name_en || p.product_name || "").trim();
+    const brand = (p.brands || "").split(",")[0].trim();
+    if (!name && !brand) return null;
+    return { name, brand };
+  }
+
+  async function lookupUPCitemdb(code) {
+    const url = "https://api.upcitemdb.com/prod/trial/lookup?upc=" + encodeURIComponent(code);
+    let res;
+    try { res = await fetchJSON(url); }
+    catch (_) { throw new Error("Couldn't reach UPCitemdb. Check your connection and scan again."); }
+    if (res.status === 429) throw new Error("UPCitemdb's free daily limit is used up. It resets within 24 hours.");
+    if (res.status === 404) return null;
+    const data = await res.json().catch(() => ({}));
+    if (data.code === "INVALID_UPC" || data.code === "NOT_FOUND") return null;
+    if (!res.ok) throw new Error("UPCitemdb returned an error. Scan again in a moment.");
+    const item = (data.items || [])[0];
+    if (!item) return null;
+    return { name: (item.title || "").trim(), brand: (item.brand || "").trim() };
+  }
+
+  scanBtn.addEventListener("click", startScan);
+  stopBtn.addEventListener("click", () => { stopScan(); setStatus(""); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && running) stopScan(); });
+
+  window.__shelfscan = { normalize };
+})();
+</script>
+</body>
+</html>
