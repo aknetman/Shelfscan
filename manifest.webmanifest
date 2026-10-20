@@ -1,7 +1,7 @@
 {
   "name": "ShelfScan",
   "short_name": "ShelfScan",
-  "description": "Scan a grocery barcode and see what Open Food Facts and UPCitemdb list for it.",
+  "description": "Scan a grocery barcode and see what Open Food Facts lists for it.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

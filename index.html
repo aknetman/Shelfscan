@@ -131,8 +131,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 <script>
 (() => {
   const SOURCES = [
-    { id: "off", name: "Open Food Facts", lookup: lookupOFF },
-    { id: "upc", name: "UPCitemdb", lookup: lookupUPCitemdb }
+    { id: "off", name: "Open Food Facts", lookup: lookupOFF }
   ];
   const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e"];
 
@@ -219,7 +218,7 @@ button:disabled { opacity: 0.5; cursor: default; }
     setTimeout(() => requestAnimationFrame(loop), 120);
   }
 
-  // UPC-E barcodes are expanded to UPC-A so both databases recognise them.
+  // UPC-E barcodes are expanded to UPC-A so the database recognises them.
   function normalize(code) {
     if (code.length === 8 && code[0] === "0") {
       const d = code.split("");
@@ -306,20 +305,6 @@ button:disabled { opacity: 0.5; cursor: default; }
     return { name, brand };
   }
 
-  async function lookupUPCitemdb(code) {
-    const url = "https://api.upcitemdb.com/prod/trial/lookup?upc=" + encodeURIComponent(code);
-    let res;
-    try { res = await fetchJSON(url); }
-    catch (_) { throw new Error("Couldn't reach UPCitemdb. Check your connection and scan again."); }
-    if (res.status === 429) throw new Error("UPCitemdb's free daily limit is used up. It resets within 24 hours.");
-    if (res.status === 404) return null;
-    const data = await res.json().catch(() => ({}));
-    if (data.code === "INVALID_UPC" || data.code === "NOT_FOUND") return null;
-    if (!res.ok) throw new Error("UPCitemdb returned an error. Scan again in a moment.");
-    const item = (data.items || [])[0];
-    if (!item) return null;
-    return { name: (item.title || "").trim(), brand: (item.brand || "").trim() };
-  }
 
   scanBtn.addEventListener("click", startScan);
   stopBtn.addEventListener("click", () => { stopScan(); setStatus(""); });
